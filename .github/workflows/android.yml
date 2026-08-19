@@ -129,7 +129,7 @@ jobs:
             "client": [
               {
                 "client_info": {
-                  "mobilesdk_app_id": "1:751764116522:android:9d4586f4a8e2b8109d1234",
+                  "mobilesdk_app_id": "1:751764116522:android:6b6de5952abc431da6dc01",
                   "android_client_info": {
                     "package_name": "com.autopartsindia"
                   }

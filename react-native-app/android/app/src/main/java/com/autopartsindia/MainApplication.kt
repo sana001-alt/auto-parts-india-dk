@@ -4,6 +4,8 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
+import com.google.firebase.FirebaseApp
+import com.google.firebase.FirebaseOptions
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
@@ -36,10 +38,28 @@ class MainApplication : Application(), ReactApplication {
 
   override fun onCreate() {
     super.onCreate()
+    initFirebaseSafely()
     createNotificationChannel()
     SoLoader.init(this, false)
     if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
       load()
+    }
+  }
+
+  private fun initFirebaseSafely() {
+    try {
+      if (FirebaseApp.getApps(this).isEmpty()) {
+        val options = FirebaseOptions.Builder()
+            .setApplicationId("1:751764116522:android:6b6de5952abc431da6dc01")
+            .setApiKey("AIzaSyAGYut7q3nCW-qSDPSldGSbxAjnna_-bvo")
+            .setProjectId("auto-parts-market-place-20312")
+            .setGcmSenderId("751764116522")
+            .setStorageBucket("auto-parts-market-place-20312.firebasestorage.app")
+            .build()
+        FirebaseApp.initializeApp(this, options)
+      }
+    } catch (e: Exception) {
+      e.printStackTrace()
     }
   }
 

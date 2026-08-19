@@ -132,7 +132,17 @@ export function createPng(width, height, bgColor = [21, 101, 255, 255], fgColor 
   return Buffer.concat([sig, ihdrChunk, idatChunk, iendChunk]);
 }
 
-export function generateAllAssets(baseDir = '.') {
+export async function generateAllAssets(baseDir = '.') {
+  try {
+    const { execSync } = await import('child_process');
+    console.log('[Asset Generator] Running high-resolution Auto Parts India brand generator...');
+    execSync('node generate-app-icons.js', { stdio: 'inherit', cwd: baseDir });
+    console.log('✅ High-resolution Auto Parts India branding generated successfully!');
+    return;
+  } catch (err) {
+    console.log('[Asset Generator] Falling back to pure Node PNG generator...');
+  }
+
   const densities = [
     { name: 'mdpi', size: 48, notifSize: 24, splashSize: 256 },
     { name: 'hdpi', size: 72, notifSize: 36, splashSize: 384 },
