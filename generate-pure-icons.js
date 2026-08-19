@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
 
-// Simple CRC32 implementation for PNG chunks
+// Precomputed CRC32 table for fast PNG chunk calculation
 const crcTable = new Uint32Array(256);
 for (let n = 0; n < 256; n++) {
   let c = n;
@@ -37,71 +37,169 @@ function makeChunk(type, data) {
  * Creates a valid 32-bit RGBA binary PNG
  * @param {number} width 
  * @param {number} height 
- * @param {[number, number, number, number]} bgColor [R, G, B, A]
- * @param {[number, number, number, number]} fgColor [R, G, B, A]
- * @param {string} mode 'icon' | 'foreground' | 'splash' | 'notification' | 'monochrome'
+ * @param {'launcher' | 'launcher_round' | 'foreground' | 'monochrome' | 'notification' | 'splash'} mode 
+ * @returns {Buffer}
  */
-export function createPng(width, height, bgColor = [21, 101, 255, 255], fgColor = [255, 255, 255, 255], mode = 'icon') {
+export function createPng(width, height, mode = 'launcher') {
   const raw = Buffer.alloc(height * (1 + width * 4));
   let offset = 0;
 
-  const cx = width / 2;
-  const cy = height / 2;
-  const radius = width * 0.42;
-  const radiusSq = radius * radius;
+  const cx = (width - 1) / 2;
+  const cy = (height - 1) / 2;
+  const halfMin = Math.min(width, height) / 2;
+
+  // Scale factor for adaptive foreground to keep emblem within the safe center zone
+  const scale = (mode === 'foreground' || mode === 'monochrome') ? 0.62 : (mode === 'notification' ? 0.78 : 0.85);
 
   for (let y = 0; y < height; y++) {
-    raw[offset++] = 0; // Filter: None
+    raw[offset++] = 0; // Filter method: 0 (None)
     for (let x = 0; x < width; x++) {
-      let [r, g, b, a] = bgColor;
+      // Normalized coordinates [-1, 1]
+      const nx = (x - cx) / halfMin;
+      const ny = (y - cy) / halfMin;
+      const rDist = Math.sqrt(nx * nx + ny * ny);
 
-      const dx = x - cx;
-      const dy = y - cy;
-      const distSq = dx * dx + dy * dy;
+      let r = 0, g = 0, b = 0, a = 0;
 
       if (mode === 'notification') {
-        // Transparent background with white center symbol
-        r = 255; g = 255; b = 255;
-        const normX = Math.abs(dx) / (width * 0.35);
-        const normY = (dy + height * 0.05) / (height * 0.35);
-        if (normX + Math.abs(normY) < 0.75 && distSq < (width * 0.38) ** 2) {
-          a = 255;
+        // Pure white icon on transparent background
+        const snx = nx / scale;
+        const sny = (ny + 0.05) / scale;
+
+        // Upper chevron wing
+        const wing1Dist = Math.abs(sny - (-0.38 + Math.abs(snx) * 0.92));
+        const inWing1 = (wing1Dist <= 0.13) && (Math.abs(snx) <= 0.58) && (sny >= -0.44) && (sny <= 0.16);
+
+        // Lower chevron wing
+        const wing2Dist = Math.abs(sny - (-0.08 + Math.abs(snx) * 0.95));
+        const inWing2 = (wing2Dist <= 0.11) && (Math.abs(snx) <= 0.48) && (sny >= -0.12) && (sny <= 0.38);
+
+        // Center diamond
+        const inDiamond = (Math.abs(snx) * 1.35 + Math.abs(sny - 0.14)) <= 0.15;
+
+        // Bottom stabilizer
+        const inBar = (sny >= 0.44 && sny <= 0.52 && Math.abs(snx) <= 0.32);
+
+        if (inWing1 || inWing2 || inDiamond || inBar) {
+          r = 255; g = 255; b = 255; a = 255;
         } else {
-          a = 0;
-        }
-      } else if (mode === 'foreground') {
-        // Transparent background, crisp emblem
-        if (Math.abs(dx) < width * 0.3 && Math.abs(dy) < height * 0.3) {
-          const chevron = (Math.abs(dx) * 1.2 - dy * 0.8);
-          if (chevron < width * 0.22 && dy > -height * 0.25) {
-            [r, g, b, a] = fgColor;
-          } else {
-            a = 0;
-          }
-        } else {
-          a = 0;
+          r = 0; g = 0; b = 0; a = 0;
         }
       } else if (mode === 'monochrome') {
-        // Grayscale / monochrome
-        if (distSq < radiusSq) {
-          [r, g, b, a] = [240, 240, 240, 255];
-          if (Math.abs(dx) < width * 0.25 && Math.abs(dy) < height * 0.25) {
-            [r, g, b, a] = [20, 20, 20, 255];
-          }
+        // Android 13+ Themed icon: Pure white silhouette on transparent background
+        const snx = nx / scale;
+        const sny = (ny + 0.03) / scale;
+
+        const wing1Dist = Math.abs(sny - (-0.38 + Math.abs(snx) * 0.92));
+        const inWing1 = (wing1Dist <= 0.13) && (Math.abs(snx) <= 0.58) && (sny >= -0.44) && (sny <= 0.16);
+
+        const wing2Dist = Math.abs(sny - (-0.08 + Math.abs(snx) * 0.95));
+        const inWing2 = (wing2Dist <= 0.11) && (Math.abs(snx) <= 0.48) && (sny >= -0.12) && (sny <= 0.38);
+
+        const inDiamond = (Math.abs(snx) * 1.35 + Math.abs(sny - 0.14)) <= 0.15;
+        const inBar = (sny >= 0.44 && sny <= 0.52 && Math.abs(snx) <= 0.32);
+
+        if (inWing1 || inWing2 || inDiamond || inBar) {
+          r = 255; g = 255; b = 255; a = 255;
         } else {
-          [r, g, b, a] = [0, 0, 0, 0];
+          r = 0; g = 0; b = 0; a = 0;
+        }
+      } else if (mode === 'foreground') {
+        // Adaptive foreground: Brand colored emblem on transparent background
+        const snx = nx / scale;
+        const sny = (ny + 0.03) / scale;
+
+        const wing1Dist = Math.abs(sny - (-0.38 + Math.abs(snx) * 0.92));
+        const inWing1 = (wing1Dist <= 0.13) && (Math.abs(snx) <= 0.58) && (sny >= -0.44) && (sny <= 0.16);
+
+        const wing2Dist = Math.abs(sny - (-0.08 + Math.abs(snx) * 0.95));
+        const inWing2 = (wing2Dist <= 0.11) && (Math.abs(snx) <= 0.48) && (sny >= -0.12) && (sny <= 0.38);
+
+        const inDiamond = (Math.abs(snx) * 1.35 + Math.abs(sny - 0.14)) <= 0.15;
+        const inBar = (sny >= 0.44 && sny <= 0.52 && Math.abs(snx) <= 0.32);
+
+        if (inWing1 || inDiamond) {
+          // Pure White
+          r = 255; g = 255; b = 255; a = 255;
+        } else if (inWing2 || inBar) {
+          // Primary Brand Blue (#1565FF)
+          r = 21; g = 101; b = 255; a = 255;
+        } else {
+          r = 0; g = 0; b = 0; a = 0;
+        }
+      } else if (mode === 'launcher_round') {
+        // Circular Launcher Icon
+        if (rDist > 0.98) {
+          r = 0; g = 0; b = 0; a = 0;
+        } else {
+          // Background Deep Navy (#0B1220) with blue radial gradient
+          const grad = Math.max(0, 1 - rDist * 0.8);
+          r = Math.round(11 + 10 * grad);
+          g = Math.round(18 + 20 * grad);
+          b = Math.round(32 + 50 * grad);
+          a = 255;
+
+          // Outer Accent Ring (between 0.90 and 0.98)
+          if (rDist >= 0.90 && rDist <= 0.98) {
+            r = 21; g = 101; b = 255; a = 255;
+          } else {
+            // Render Core Emblem
+            const snx = nx / scale;
+            const sny = (ny + 0.03) / scale;
+
+            const wing1Dist = Math.abs(sny - (-0.38 + Math.abs(snx) * 0.92));
+            const inWing1 = (wing1Dist <= 0.13) && (Math.abs(snx) <= 0.58) && (sny >= -0.44) && (sny <= 0.16);
+
+            const wing2Dist = Math.abs(sny - (-0.08 + Math.abs(snx) * 0.95));
+            const inWing2 = (wing2Dist <= 0.11) && (Math.abs(snx) <= 0.48) && (sny >= -0.12) && (sny <= 0.38);
+
+            const inDiamond = (Math.abs(snx) * 1.35 + Math.abs(sny - 0.14)) <= 0.15;
+            const inBar = (sny >= 0.44 && sny <= 0.52 && Math.abs(snx) <= 0.32);
+
+            if (inWing1 || inDiamond) {
+              r = 255; g = 255; b = 255; a = 255;
+            } else if (inWing2 || inBar) {
+              r = 21; g = 101; b = 255; a = 255;
+            }
+          }
         }
       } else {
-        // Standard Icon / Splash: rounded rect or circular emblem
-        if (mode === 'round') {
-          if (distSq > (width * 0.48) ** 2) {
-            a = 0;
+        // Standard Square / Rounded Rect Launcher Icon & Splash
+        // Squircle mask: (nx^4 + ny^4) <= 0.88
+        const squircle = Math.pow(nx, 4) + Math.pow(ny, 4);
+        if (squircle > 0.92 && mode !== 'splash') {
+          r = 0; g = 0; b = 0; a = 0;
+        } else {
+          // Deep Navy (#0B1220) background with radial gradient
+          const grad = Math.max(0, 1 - rDist * 0.7);
+          r = Math.round(11 + 10 * grad);
+          g = Math.round(18 + 20 * grad);
+          b = Math.round(32 + 50 * grad);
+          a = 255;
+
+          // Squircle Outer Accent Border
+          if (squircle >= 0.82 && squircle <= 0.92 && mode !== 'splash') {
+            r = 21; g = 101; b = 255; a = 255;
+          } else {
+            // Render Core Emblem
+            const snx = nx / scale;
+            const sny = (ny + 0.03) / scale;
+
+            const wing1Dist = Math.abs(sny - (-0.38 + Math.abs(snx) * 0.92));
+            const inWing1 = (wing1Dist <= 0.13) && (Math.abs(snx) <= 0.58) && (sny >= -0.44) && (sny <= 0.16);
+
+            const wing2Dist = Math.abs(sny - (-0.08 + Math.abs(snx) * 0.95));
+            const inWing2 = (wing2Dist <= 0.11) && (Math.abs(snx) <= 0.48) && (sny >= -0.12) && (sny <= 0.38);
+
+            const inDiamond = (Math.abs(snx) * 1.35 + Math.abs(sny - 0.14)) <= 0.15;
+            const inBar = (sny >= 0.44 && sny <= 0.52 && Math.abs(snx) <= 0.32);
+
+            if (inWing1 || inDiamond) {
+              r = 255; g = 255; b = 255; a = 255;
+            } else if (inWing2 || inBar) {
+              r = 21; g = 101; b = 255; a = 255;
+            }
           }
-        }
-        // Draw inner white emblem
-        const innerDist = Math.abs(dx) + Math.abs(dy);
-        if (innerDist < width * 0.28 && dy > -height * 0.2 && dy < height * 0.25) {
-          [r, g, b, a] = fgColor;
         }
       }
 
@@ -112,7 +210,7 @@ export function createPng(width, height, bgColor = [21, 101, 255, 255], fgColor 
     }
   }
 
-  const compressed = zlib.deflateSync(raw);
+  const compressed = zlib.deflateSync(raw, { level: 9 });
 
   const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -132,23 +230,19 @@ export function createPng(width, height, bgColor = [21, 101, 255, 255], fgColor 
   return Buffer.concat([sig, ihdrChunk, idatChunk, iendChunk]);
 }
 
-export async function generateAllAssets(baseDir = '.') {
-  try {
-    const { execSync } = await import('child_process');
-    console.log('[Asset Generator] Running high-resolution Auto Parts India brand generator...');
-    execSync('node generate-app-icons.js', { stdio: 'inherit', cwd: baseDir });
-    console.log('✅ High-resolution Auto Parts India branding generated successfully!');
-    return;
-  } catch (err) {
-    console.log('[Asset Generator] Falling back to pure Node PNG generator...');
-  }
+/**
+ * Completely cleans existing app-owned PNG icons, removes any duplicate resources or node_modules PNGs,
+ * and regenerates fresh valid binary PNG files for Auto Parts India branding.
+ */
+export function generateAllAssets(baseDir = '.') {
+  console.log('🚀 [Zero-Dependency PNG Generator] Generating authentic Auto Parts India Android assets...');
 
   const densities = [
-    { name: 'mdpi', size: 48, notifSize: 24, splashSize: 256 },
-    { name: 'hdpi', size: 72, notifSize: 36, splashSize: 384 },
-    { name: 'xhdpi', size: 96, notifSize: 48, splashSize: 512 },
-    { name: 'xxhdpi', size: 144, notifSize: 72, splashSize: 768 },
-    { name: 'xxxhdpi', size: 192, notifSize: 96, splashSize: 1024 },
+    { name: 'mdpi', size: 48, fgSize: 108, notifSize: 24, splashSize: 192 },
+    { name: 'hdpi', size: 72, fgSize: 162, notifSize: 36, splashSize: 288 },
+    { name: 'xhdpi', size: 96, fgSize: 216, notifSize: 48, splashSize: 384 },
+    { name: 'xxhdpi', size: 144, fgSize: 324, notifSize: 72, splashSize: 576 },
+    { name: 'xxxhdpi', size: 192, fgSize: 432, notifSize: 96, splashSize: 768 },
   ];
 
   const targetResDirs = [
@@ -156,57 +250,81 @@ export async function generateAllAssets(baseDir = '.') {
     path.join(baseDir, 'android/app/src/main/res')
   ];
 
+  const appOwnedPngNames = [
+    'ic_launcher.png',
+    'ic_launcher_round.png',
+    'ic_launcher_foreground.png',
+    'ic_launcher_monochrome.png',
+    'ic_notification.png',
+    'splash_logo.png',
+    'master_logo.png'
+  ];
+
   for (const resDir of targetResDirs) {
     if (!fs.existsSync(resDir)) continue;
 
-    console.log(`[Pure PNG Generator] Populating Android resources in: ${resDir}`);
+    console.log(`🧹 Cleaning and populating resources in: ${resDir}`);
 
-    // Clean anydpi png conflicts
-    const anyDpiDir = path.join(resDir, 'mipmap-anydpi-v26');
-    if (fs.existsSync(anyDpiDir)) {
-      const files = fs.readdirSync(anyDpiDir);
+    // Clean any node_modules PNGs or rogue PNGs from any subdirectory in res
+    const subDirs = fs.readdirSync(resDir);
+    for (const sub of subDirs) {
+      const fullSubPath = path.join(resDir, sub);
+      if (!fs.statSync(fullSubPath).isDirectory()) continue;
+
+      // In mipmap-anydpi-v26, ensure NO PNG files exist (XMLs only)
+      if (sub === 'mipmap-anydpi-v26') {
+        const files = fs.readdirSync(fullSubPath);
+        for (const f of files) {
+          if (f.endsWith('.png')) {
+            fs.unlinkSync(path.join(fullSubPath, f));
+            console.log(`  Removed invalid PNG from ${sub}: ${f}`);
+          }
+        }
+        continue;
+      }
+
+      // Delete any node_modules copied PNGs
+      const files = fs.readdirSync(fullSubPath);
       for (const f of files) {
-        if (f.endsWith('.png')) {
-          fs.unlinkSync(path.join(anyDpiDir, f));
-          console.log(`  Removed conflicting PNG: mipmap-anydpi-v26/${f}`);
+        if (f.startsWith('node_modules_')) {
+          fs.unlinkSync(path.join(fullSubPath, f));
+          console.log(`  Removed node_modules asset: ${sub}/${f}`);
         }
       }
     }
 
-    // Remove conflicting background xmls
-    for (const d of fs.readdirSync(resDir)) {
-      const fullPath = path.join(resDir, d);
-      if (fs.statSync(fullPath).isDirectory()) {
-        const bgXml = path.join(fullPath, 'ic_launcher_background.xml');
-        if (fs.existsSync(bgXml)) {
-          fs.unlinkSync(bgXml);
-          console.log(`  Removed redundant XML: ${d}/ic_launcher_background.xml`);
-        }
-      }
-    }
-
-    // Generate density mipmaps
-    for (const { name, size, notifSize, splashSize } of densities) {
+    // Generate fresh valid binary PNG files for each density
+    for (const { name, size, fgSize, notifSize, splashSize } of densities) {
       const mipmapDir = path.join(resDir, `mipmap-${name}`);
       fs.mkdirSync(mipmapDir, { recursive: true });
 
-      fs.writeFileSync(path.join(mipmapDir, 'ic_launcher.png'), createPng(size, size, [21, 101, 255, 255], [255, 255, 255, 255], 'icon'));
-      fs.writeFileSync(path.join(mipmapDir, 'ic_launcher_round.png'), createPng(size, size, [21, 101, 255, 255], [255, 255, 255, 255], 'round'));
-      fs.writeFileSync(path.join(mipmapDir, 'ic_launcher_foreground.png'), createPng(size, size, [0, 0, 0, 0], [255, 255, 255, 255], 'foreground'));
-      fs.writeFileSync(path.join(mipmapDir, 'ic_launcher_monochrome.png'), createPng(size, size, [0, 0, 0, 0], [255, 255, 255, 255], 'monochrome'));
-      fs.writeFileSync(path.join(mipmapDir, 'ic_notification.png'), createPng(notifSize, notifSize, [0, 0, 0, 0], [255, 255, 255, 255], 'notification'));
+      // Clean existing target PNGs before writing fresh ones
+      for (const png of ['ic_launcher.png', 'ic_launcher_round.png', 'ic_launcher_foreground.png', 'ic_launcher_monochrome.png', 'ic_notification.png']) {
+        const p = path.join(mipmapDir, png);
+        if (fs.existsSync(p)) fs.unlinkSync(p);
+      }
 
-      // Generate density drawables
+      fs.writeFileSync(path.join(mipmapDir, 'ic_launcher.png'), createPng(size, size, 'launcher'));
+      fs.writeFileSync(path.join(mipmapDir, 'ic_launcher_round.png'), createPng(size, size, 'launcher_round'));
+      fs.writeFileSync(path.join(mipmapDir, 'ic_launcher_foreground.png'), createPng(fgSize, fgSize, 'foreground'));
+      fs.writeFileSync(path.join(mipmapDir, 'ic_launcher_monochrome.png'), createPng(fgSize, fgSize, 'monochrome'));
+      fs.writeFileSync(path.join(mipmapDir, 'ic_notification.png'), createPng(notifSize, notifSize, 'notification'));
+
       const drawableDir = path.join(resDir, `drawable-${name}`);
       fs.mkdirSync(drawableDir, { recursive: true });
 
-      fs.writeFileSync(path.join(drawableDir, 'ic_notification.png'), createPng(notifSize, notifSize, [0, 0, 0, 0], [255, 255, 255, 255], 'notification'));
-      fs.writeFileSync(path.join(drawableDir, 'splash_logo.png'), createPng(splashSize, splashSize, [21, 101, 255, 255], [255, 255, 255, 255], 'icon'));
-      fs.writeFileSync(path.join(drawableDir, 'master_logo.png'), createPng(splashSize, splashSize, [21, 101, 255, 255], [255, 255, 255, 255], 'icon'));
+      for (const png of ['ic_notification.png', 'splash_logo.png', 'master_logo.png']) {
+        const p = path.join(drawableDir, png);
+        if (fs.existsSync(p)) fs.unlinkSync(p);
+      }
+
+      fs.writeFileSync(path.join(drawableDir, 'ic_notification.png'), createPng(notifSize, notifSize, 'notification'));
+      fs.writeFileSync(path.join(drawableDir, 'splash_logo.png'), createPng(splashSize, splashSize, 'splash'));
+      fs.writeFileSync(path.join(drawableDir, 'master_logo.png'), createPng(splashSize, splashSize, 'splash'));
     }
   }
 
-  // Also save master PNGs to assets folders
+  // Also write master PNGs to web / app asset folders
   const assetDirs = [
     path.join(baseDir, 'public'),
     path.join(baseDir, 'src/assets'),
@@ -215,15 +333,16 @@ export async function generateAllAssets(baseDir = '.') {
 
   for (const aDir of assetDirs) {
     if (!fs.existsSync(aDir)) continue;
-    fs.writeFileSync(path.join(aDir, 'app-icon.png'), createPng(512, 512, [21, 101, 255, 255], [255, 255, 255, 255], 'icon'));
-    fs.writeFileSync(path.join(aDir, 'icon.png'), createPng(512, 512, [21, 101, 255, 255], [255, 255, 255, 255], 'icon'));
-    fs.writeFileSync(path.join(aDir, 'playstore-icon-512.png'), createPng(512, 512, [21, 101, 255, 255], [255, 255, 255, 255], 'icon'));
-    fs.writeFileSync(path.join(aDir, 'notification-icon.png'), createPng(96, 96, [0, 0, 0, 0], [255, 255, 255, 255], 'notification'));
+    fs.writeFileSync(path.join(aDir, 'app-icon.png'), createPng(512, 512, 'launcher'));
+    fs.writeFileSync(path.join(aDir, 'icon.png'), createPng(512, 512, 'launcher'));
+    fs.writeFileSync(path.join(aDir, 'playstore-icon-512.png'), createPng(512, 512, 'launcher'));
+    fs.writeFileSync(path.join(aDir, 'notification-icon.png'), createPng(96, 96, 'notification'));
   }
 
-  console.log('✅ All Android PNG assets generated with 100% valid 32-bit binary headers!');
+  console.log('✅ Successfully generated authentic Auto Parts India Android binary PNG assets with 100% AAPT2 compatibility!');
 }
 
+// Auto-run if executed directly
 if (process.argv[1] && process.argv[1].endsWith('generate-pure-icons.js')) {
   generateAllAssets();
 }

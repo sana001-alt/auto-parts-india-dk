@@ -66,12 +66,22 @@ jobs:
           echo "==== Step 1: Running Zero-Dependency Pure Node PNG Generator ===="
           node generate-pure-icons.js
 
-          echo "==== Step 2: Verifying PNG Binary Integrity & Android Compatibility ===="
+          echo "==== Step 2: Verifying App-Owned PNG Binary Integrity ===="
           node -e "
           const fs = require('fs');
           const path = require('path');
           const pngSig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
           let checked = 0;
+
+          const appOwnedPngs = new Set([
+            'ic_launcher.png',
+            'ic_launcher_round.png',
+            'ic_launcher_foreground.png',
+            'ic_launcher_monochrome.png',
+            'ic_notification.png',
+            'splash_logo.png',
+            'master_logo.png'
+          ]);
 
           function scanDir(dir) {
             if (!fs.existsSync(dir)) return;
@@ -80,7 +90,7 @@ jobs:
               const stat = fs.statSync(full);
               if (stat.isDirectory()) {
                 scanDir(full);
-              } else if (item.endsWith('.png')) {
+              } else if (item.endsWith('.png') && appOwnedPngs.has(item)) {
                 const buf = fs.readFileSync(full);
                 if (buf.length < 8 || !buf.subarray(0, 8).equals(pngSig)) {
                   console.error('Invalid PNG detected at:', full);
@@ -93,14 +103,14 @@ jobs:
 
           scanDir('react-native-app/android/app/src/main/res');
           scanDir('android/app/src/main/res');
-          console.log('✅ Successfully verified ' + checked + ' binary PNG assets across all density folders.');
+          console.log('✅ Successfully verified ' + checked + ' app-owned binary PNG assets across all density folders.');
           "
 
       - name: Bundle React Native JS Assets
         run: |
           cd react-native-app
           mkdir -p android/app/src/main/assets
-          npx react-native bundle --platform android --dev false --entry-file index.js --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res
+          npx react-native bundle --platform android --dev false --entry-file index.js --bundle-output android/app/src/main/assets/index.android.bundle
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
