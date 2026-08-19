@@ -63,41 +63,64 @@ jobs:
 
       - name: Auto-generate Clean Binary PNG Icons & Clean Resources
         run: |
-          echo "==== Step 1: Installing Image Processing Tools ===="
-          sudo apt-get update && sudo apt-get install -y imagemagick
-
-          echo "==== Step 2: Creating Valid Binary PNG Icon ===="
-          mkdir -p /tmp/clean_icons
-          convert -size 512x512 xc:"#1E88E5" -fill white -gravity center -pointsize 120 -draw "text 0,0 'API'" /tmp/clean_icons/base_icon.png
-
-          echo "==== Step 3: Cleaning mipmap-anydpi-v26 conflicts ===="
-          if [ -d "react-native-app/android/app/src/main/res/mipmap-anydpi-v26" ]; then
-            rm -f react-native-app/android/app/src/main/res/mipmap-anydpi-v26/*.png
+          echo "==== Step 1: Running Node Icon Generation Script if available ===="
+          if [ -f "generate-app-icons.js" ]; then
+            node generate-app-icons.js || true
           fi
 
-          echo "==== Step 4: Overwriting corrupt launcher icons in pixel-density mipmap folders ===="
-          for dir in react-native-app/android/app/src/main/res/mipmap-*; do
-            if [ -d "$dir" ] && [ "$dir" != "react-native-app/android/app/src/main/res/mipmap-anydpi-v26" ]; then
-              cp /tmp/clean_icons/base_icon.png "$dir/ic_launcher.png"
-              cp /tmp/clean_icons/base_icon.png "$dir/ic_launcher_round.png"
-              cp /tmp/clean_icons/base_icon.png "$dir/ic_launcher_foreground.png"
-              cp /tmp/clean_icons/base_icon.png "$dir/ic_launcher_monochrome.png"
-              cp /tmp/clean_icons/base_icon.png "$dir/ic_notification.png"
+          echo "==== Step 2: Installing Image Processing Tools ===="
+          sudo apt-get update && sudo apt-get install -y imagemagick
+
+          echo "==== Step 3: Creating Valid 32-bit Binary PNG Icon ===="
+          mkdir -p /tmp/clean_icons
+          convert -size 512x512 xc:"#1E88E5" -fill white -gravity center -pointsize 120 -draw "text 0,0 'API'" png32:/tmp/clean_icons/base_icon.png
+
+          echo "==== Step 4: Cleaning mipmap-anydpi-v26 conflicts ===="
+          for res_dir in "react-native-app/android/app/src/main/res" "android/app/src/main/res"; do
+            if [ -d "$res_dir/mipmap-anydpi-v26" ]; then
+              echo "Removing conflicting PNGs from $res_dir/mipmap-anydpi-v26..."
+              rm -f "$res_dir/mipmap-anydpi-v26/"*.png
             fi
           done
 
-          echo "==== Step 5: Cleaning conflicting ic_launcher_background.xml files ===="
-          find react-native-app/android/app/src/main/res -name "ic_launcher_background.xml" -exec rm -f {} \;
+          echo "==== Step 5: Overwriting corrupt launcher and notification icons in pixel-density mipmap folders ===="
+          for res_dir in "react-native-app/android/app/src/main/res" "android/app/src/main/res"; do
+            if [ -d "$res_dir" ]; then
+              for dir in "$res_dir"/mipmap-*; do
+                if [ -d "$dir" ] && [ "$dir" != "$res_dir/mipmap-anydpi-v26" ]; then
+                  echo "Ensuring binary icons in $dir..."
+                  cp /tmp/clean_icons/base_icon.png "$dir/ic_launcher.png"
+                  cp /tmp/clean_icons/base_icon.png "$dir/ic_launcher_round.png"
+                  cp /tmp/clean_icons/base_icon.png "$dir/ic_launcher_foreground.png"
+                  cp /tmp/clean_icons/base_icon.png "$dir/ic_launcher_monochrome.png"
+                  cp /tmp/clean_icons/base_icon.png "$dir/ic_notification.png"
+                fi
+              done
+            fi
+          done
 
-          echo "==== Step 6: Overwriting/Fixing corrupt splash and drawable PNG assets ===="
-          find react-native-app/android/app/src/main/res -type d -name "drawable-*" | while read -r dir; do
-            if [ -f "$dir/splash_logo.png" ]; then
-              cp /tmp/clean_icons/base_icon.png "$dir/splash_logo.png"
+          echo "==== Step 6: Cleaning conflicting ic_launcher_background.xml files ===="
+          for res_dir in "react-native-app/android/app/src/main/res" "android/app/src/main/res"; do
+            if [ -d "$res_dir" ]; then
+              find "$res_dir" -name "ic_launcher_background.xml" -exec rm -f {} \;
             fi
-            if [ -f "$dir/master_logo.png" ]; then
-              cp /tmp/clean_icons/base_icon.png "$dir/master_logo.png"
+          done
+
+          echo "==== Step 7: Ensuring valid binary PNGs for drawable assets & ic_notification ===="
+          for res_dir in "react-native-app/android/app/src/main/res" "android/app/src/main/res"; do
+            if [ -d "$res_dir" ]; then
+              find "$res_dir" -type d -name "drawable-*" | while read -r dir; do
+                echo "Updating drawable icons in $dir..."
+                cp /tmp/clean_icons/base_icon.png "$dir/ic_notification.png"
+                if [ -f "$dir/splash_logo.png" ] || [ ! -f "$dir/splash_logo.png" ]; then
+                  cp /tmp/clean_icons/base_icon.png "$dir/splash_logo.png"
+                fi
+                if [ -f "$dir/master_logo.png" ] || [ ! -f "$dir/master_logo.png" ]; then
+                  cp /tmp/clean_icons/base_icon.png "$dir/master_logo.png"
+                fi
+                find "$dir" -type f ! -name "splash_logo.png" ! -name "master_logo.png" ! -name "ic_notification.png" -name "*.png" -exec rm -f {} \;
+              done
             fi
-            find "$dir" -type f ! -name "splash_logo.png" ! -name "master_logo.png" -name "*.png" -exec rm -f {} \;
           done
 
       - name: Bundle React Native JS Assets

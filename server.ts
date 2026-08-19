@@ -18,7 +18,7 @@ function getGeminiAI(): GoogleGenAI | null {
 
 async function startServer() {
   const app = express();
-  const PORT = Number(process.env.PORT) || 3000;
+  const PORT = 3000;
 
   // JSON parsing middleware with custom limits for large payloads (e.g. base64 images if needed)
   app.use(express.json({ limit: "50mb" }));
