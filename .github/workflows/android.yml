@@ -71,16 +71,15 @@ jobs:
           convert -size 512x512 xc:"#1E88E5" -fill white -gravity center -pointsize 120 -draw "text 0,0 'API'" /tmp/clean_icons/base_icon.png
 
           echo "==== Step 3: Cleaning mipmap-anydpi-v26 conflicts ===="
-          # mipmap-anydpi-v26 folder uses XML adaptive icons. Remove any PNG files in it to prevent duplicate resource errors.
           if [ -d "react-native-app/android/app/src/main/res/mipmap-anydpi-v26" ]; then
             rm -f react-native-app/android/app/src/main/res/mipmap-anydpi-v26/*.png
           fi
 
           echo "==== Step 4: Overwriting corrupt launcher icons in pixel-density mipmap folders ===="
-          # Overwrite PNG icons only in density folders (mdpi, hdpi, xhdpi, xxhdpi, xxxhdpi)
           for dir in react-native-app/android/app/src/main/res/mipmap-*; do
             if [ -d "$dir" ] && [ "$dir" != "react-native-app/android/app/src/main/res/mipmap-anydpi-v26" ]; then
               cp /tmp/clean_icons/base_icon.png "$dir/ic_launcher.png"
+              cp /tmp/clean_icons/base_icon.png "$dir/ic_launcher_round.png"
               cp /tmp/clean_icons/base_icon.png "$dir/ic_launcher_foreground.png"
               cp /tmp/clean_icons/base_icon.png "$dir/ic_launcher_monochrome.png"
               cp /tmp/clean_icons/base_icon.png "$dir/ic_notification.png"
@@ -90,8 +89,14 @@ jobs:
           echo "==== Step 5: Cleaning conflicting ic_launcher_background.xml files ===="
           find react-native-app/android/app/src/main/res -name "ic_launcher_background.xml" -exec rm -f {} \;
 
-          echo "==== Step 6: Preventing duplicate asset resources in drawables ===="
+          echo "==== Step 6: Overwriting/Fixing corrupt splash and drawable PNG assets ===="
           find react-native-app/android/app/src/main/res -type d -name "drawable-*" | while read -r dir; do
+            if [ -f "$dir/splash_logo.png" ]; then
+              cp /tmp/clean_icons/base_icon.png "$dir/splash_logo.png"
+            fi
+            if [ -f "$dir/master_logo.png" ]; then
+              cp /tmp/clean_icons/base_icon.png "$dir/master_logo.png"
+            fi
             find "$dir" -type f ! -name "splash_logo.png" ! -name "master_logo.png" -name "*.png" -exec rm -f {} \;
           done
 
