@@ -106,12 +106,6 @@ jobs:
           console.log('✅ Successfully verified ' + checked + ' app-owned binary PNG assets across all density folders.');
           "
 
-      - name: Bundle React Native JS Assets
-        run: |
-          cd react-native-app
-          mkdir -p android/app/src/main/assets
-          npx react-native bundle --platform android --dev false --entry-file index.js --bundle-output android/app/src/main/assets/index.android.bundle
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
