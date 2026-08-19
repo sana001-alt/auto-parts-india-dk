@@ -159,6 +159,7 @@ async function main() {
 
   // 2. Android Mipmap & Drawable Target Directories
   const resDirectories = [
+    './android/app/src/main/res',
     './react-native-app/android/app/src/main/res'
   ];
 
@@ -189,41 +190,57 @@ async function main() {
       // Legacy Square launcher icon
       await sharp(fullBuffer)
         .resize(size, size)
+        .ensureAlpha()
+        .png({ compressionLevel: 9, adaptiveFiltering: false, force: true, palette: false })
         .toFile(path.join(targetPath, 'ic_launcher.png'));
 
       // Legacy Round launcher icon
       await sharp(roundBuffer)
         .resize(size, size)
+        .ensureAlpha()
+        .png({ compressionLevel: 9, adaptiveFiltering: false, force: true, palette: false })
         .toFile(path.join(targetPath, 'ic_launcher_round.png'));
 
       // Adaptive Foreground launcher icon
       await sharp(foregroundBuffer)
         .resize(fgSize, fgSize)
+        .ensureAlpha()
+        .png({ compressionLevel: 9, adaptiveFiltering: false, force: true, palette: false })
         .toFile(path.join(targetPath, 'ic_launcher_foreground.png'));
 
       // Android 13+ Monochrome launcher icon
       await sharp(monochromeBuffer)
         .resize(fgSize, fgSize)
+        .ensureAlpha()
+        .png({ compressionLevel: 9, adaptiveFiltering: false, force: true, palette: false })
         .toFile(path.join(targetPath, 'ic_launcher_monochrome.png'));
 
-      // Notification Icon
-      await sharp(notificationBuffer)
-        .resize(notifSize, notifSize)
+      // Notification Icon in mipmap density folder
+      await sharp(Buffer.from(notificationIconSvg))
+        .resize(notifSize, notifSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+        .ensureAlpha(1.0)
+        .png({ palette: false, quality: 100, compressionLevel: 6, adaptiveFiltering: false, force: true })
         .toFile(path.join(targetPath, 'ic_notification.png'));
 
       // Splash Screen Logo in drawable density folder
       await sharp(playStoreBuffer)
         .resize(splashSize, splashSize)
+        .ensureAlpha()
+        .png({ compressionLevel: 9, adaptiveFiltering: false, force: true, palette: false })
         .toFile(path.join(drawPath, 'splash_logo.png'));
 
       // Notification Icon in drawable density folder
-      await sharp(notificationBuffer)
-        .resize(notifSize, notifSize)
+      await sharp(Buffer.from(notificationIconSvg))
+        .resize(notifSize, notifSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+        .ensureAlpha(1.0)
+        .png({ palette: false, quality: 100, compressionLevel: 6, adaptiveFiltering: false, force: true })
         .toFile(path.join(drawPath, 'ic_notification.png'));
 
       // Master Logo in drawable density folder
       await sharp(fullBuffer)
         .resize(splashSize, splashSize)
+        .ensureAlpha()
+        .png({ compressionLevel: 9, adaptiveFiltering: false, force: true, palette: false })
         .toFile(path.join(drawPath, 'master_logo.png'));
 
       console.log(`Generated ${dir} & ${drawDir} assets for ${resDir}`);
