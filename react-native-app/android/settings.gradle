@@ -1,0 +1,40 @@
+pluginManagement {
+    def getPluginDir = {
+        def localDir = file("../node_modules/@react-native/gradle-plugin")
+        if (localDir.exists()) return localDir.toString()
+        try {
+            def proc = ["node", "--print", "require.resolve('@react-native/gradle-plugin/package.json')"].execute(null, rootDir)
+            if (proc.waitFor() == 0) {
+                def resolved = new File(proc.text.trim()).getParentFile()
+                if (resolved.exists()) return resolved.toString()
+            }
+        } catch (Exception ignored) {}
+        def parentDir = file("../../node_modules/@react-native/gradle-plugin")
+        if (parentDir.exists()) return parentDir.toString()
+        return "../node_modules/@react-native/gradle-plugin"
+    }
+    includeBuild(getPluginDir())
+}
+
+plugins { id("com.facebook.react.settings") }
+extensions.configure(com.facebook.react.ReactSettingsExtension){ it.autolinkLibrariesFromCommand() }
+
+rootProject.name = 'AutoPartsIndia'
+include ':app'
+
+def getPluginDir = {
+    def localDir = file("../node_modules/@react-native/gradle-plugin")
+    if (localDir.exists()) return localDir.toString()
+    try {
+        def proc = ["node", "--print", "require.resolve('@react-native/gradle-plugin/package.json')"].execute(null, rootDir)
+        if (proc.waitFor() == 0) {
+            def resolved = new File(proc.text.trim()).getParentFile()
+            if (resolved.exists()) return resolved.toString()
+        }
+    } catch (Exception ignored) {}
+    def parentDir = file("../../node_modules/@react-native/gradle-plugin")
+    if (parentDir.exists()) return parentDir.toString()
+    return "../node_modules/@react-native/gradle-plugin"
+}
+includeBuild(getPluginDir())
+

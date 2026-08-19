@@ -1,0 +1,77 @@
+buildscript {
+    ext {
+        buildToolsVersion = "34.0.0"
+        minSdkVersion = 24
+        compileSdkVersion = 34
+        targetSdkVersion = 34
+        ndkVersion = "26.1.10909125"
+        kotlinVersion = "2.0.21"
+    }
+
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.2.1")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
+        classpath("com.google.gms:google-services:4.4.1")
+    }
+}
+
+apply plugin: "com.facebook.react.rootproject"
+
+subprojects {
+    plugins.withId("com.android.library") {
+        def androidComponents = extensions.findByName("androidComponents")
+        if (androidComponents != null) {
+            androidComponents.finalizeDsl { extension ->
+                extension.compileOptions.sourceCompatibility = JavaVersion.VERSION_17
+                extension.compileOptions.targetCompatibility = JavaVersion.VERSION_17
+            }
+        }
+    }
+
+    plugins.withId("com.android.application") {
+        def androidComponents = extensions.findByName("androidComponents")
+        if (androidComponents != null) {
+            androidComponents.finalizeDsl { extension ->
+                extension.compileOptions.sourceCompatibility = JavaVersion.VERSION_17
+                extension.compileOptions.targetCompatibility = JavaVersion.VERSION_17
+            }
+        }
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        sourceCompatibility = JavaVersion.VERSION_17.toString()
+        targetCompatibility = JavaVersion.VERSION_17.toString()
+    }
+
+    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+        kotlinOptions {
+            jvmTarget = "17"
+        }
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    configurations.all {
+        resolutionStrategy {
+            force "org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion"
+            force "org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion"
+
+            force "androidx.core:core:1.13.1"
+            force "androidx.core:core-ktx:1.13.1"
+            force "androidx.fragment:fragment:1.7.1"
+            force "androidx.fragment:fragment-ktx:1.7.1"
+            force "androidx.appcompat:appcompat:1.6.1"
+        }
+    }
+}
