@@ -61,51 +61,6 @@ jobs:
           cd react-native-app
           npm install --legacy-peer-deps
 
-      - name: Auto-generate Clean Binary PNG Icons & Clean Resources
-        run: |
-          echo "==== Step 1: Running Zero-Dependency Pure Node PNG Generator ===="
-          node generate-pure-icons.js
-
-          echo "==== Step 2: Verifying App-Owned PNG Binary Integrity ===="
-          node -e "
-          const fs = require('fs');
-          const path = require('path');
-          const pngSig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-          let checked = 0;
-
-          const appOwnedPngs = new Set([
-            'ic_launcher.png',
-            'ic_launcher_round.png',
-            'ic_launcher_foreground.png',
-            'ic_launcher_monochrome.png',
-            'ic_notification.png',
-            'splash_logo.png',
-            'master_logo.png'
-          ]);
-
-          function scanDir(dir) {
-            if (!fs.existsSync(dir)) return;
-            for (const item of fs.readdirSync(dir)) {
-              const full = path.join(dir, item);
-              const stat = fs.statSync(full);
-              if (stat.isDirectory()) {
-                scanDir(full);
-              } else if (item.endsWith('.png') && appOwnedPngs.has(item)) {
-                const buf = fs.readFileSync(full);
-                if (buf.length < 8 || !buf.subarray(0, 8).equals(pngSig)) {
-                  console.error('Invalid PNG detected at:', full);
-                  process.exit(1);
-                }
-                checked++;
-              }
-            }
-          }
-
-          scanDir('react-native-app/android/app/src/main/res');
-          scanDir('android/app/src/main/res');
-          console.log('✅ Successfully verified ' + checked + ' app-owned binary PNG assets across all density folders.');
-          "
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:

@@ -65,8 +65,6 @@
     <application
       android:name=".MainApplication"
       android:label="@string/app_name"
-      android:icon="@mipmap/ic_launcher"
-      android:roundIcon="@mipmap/ic_launcher_round"
       android:allowBackup="false"
       android:theme="@style/AppTheme">
 
@@ -75,11 +73,6 @@
         android:name="com.google.firebase.messaging.default_notification_channel_id"
         android:value="auto_parts_notifications"
         tools:replace="android:value" />
-
-      <!-- FCM Default Icon & Color -->
-      <meta-data
-        android:name="com.google.firebase.messaging.default_notification_icon"
-        android:value="@drawable/ic_notification" />
 
       <meta-data
         android:name="com.google.firebase.messaging.default_notification_color"
