@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -65,7 +67,11 @@ jobs:
           # Clean all ic_launcher_background.xml files so color is solely defined in values/colors.xml
           find react-native-app/android/app/src/main/res -name "ic_launcher_background.xml" -exec rm -f {} \;
           
-          echo "==== Step 2: Preventing duplicate asset resources ===="
+          echo "==== Step 2: Cleaning duplicate ic_notification.png from mipmap folders ===="
+          # Notification icons must reside only in drawable-* folders. Remove them from mipmap-* to prevent AAPT compilation conflicts.
+          find react-native-app/android/app/src/main/res/mipmap-* -name "ic_notification.png" -exec rm -f {} \;
+
+          echo "==== Step 3: Preventing duplicate asset resources ===="
           # npx react-native bundle often dumps asset files in android/app/src/main/res/drawable-* folders.
           # When Gradle is run, the React Native Gradle plugin copies these assets again or compiles them, triggering duplicate resource crashes.
           # We delete any existing auto-generated drawable-* asset folders before Gradle compilation to allow a clean, single-source compilation.
@@ -73,7 +79,7 @@ jobs:
           find react-native-app/android/app/src/main/res -type d -name "drawable-*" | while read -r dir; do
             echo "Cleaning up generated assets in $dir to prevent AAPT duplicates"
             # Remove any standard asset pngs that are copied by the packager but keep custom launcher assets if they exist
-            find "$dir" -type f ! -name "splash_logo.png" ! -name "master_logo.png" ! -name "ic_notification.png" -name "*.png" -exec rm -f {} \;
+            find "$dir" -type f ! -name "splash_logo.png" ! -name "master_logo.png" -name "*.png" -exec rm -f {} \;
           done
 
       - name: Setup Gradle
